@@ -1,0 +1,75 @@
+function doGet() {
+// you only need to modify the next four lines of this code then publish web app
+  var email = 'YOUR USER EMAIL'; //what you use to login to nest
+  var password = 'YOUR PASSWORD' //what you use to login to nest
+  var zip = 'XXXXX'; //your zippy code
+  var sheetid = 'LONG NUMBER STRING OF DATA';  //on your spreadsheet url its everything between /d/ <sheet id> /edit
+  
+  var login_auth = performLogin(email,password);
+             
+  var headers = {
+    "Authorization" : 'Basic '+login_auth['access_token'],
+    "X-nl-user-id"  : login_auth['userid'],
+    "X-nl-protocol-version" : '1',
+    'Accept-Language': 'en-us',
+    'Connection'    : 'keep-alive',
+    'Accept'        : '*/*',
+  };
+  
+  var options = {
+    'headers' : headers
+  };
+  
+  var request=UrlFetchApp.fetch(login_auth['urls']['transport_url']+'/v2/mobile/user.'+login_auth['userid'], options);
+  var result=JSON.parse(request.getContentText());
+ 
+  var structure_id = result['user'][login_auth['userid']]['structures'][0].split('.')[1]
+  var device_id    = result['structure'][structure_id]['devices'][0].split('.')[1]
+
+//NEST DATA 
+  var current_temp = ((result["shared"][device_id]["current_temperature"]*9)/5)+32;
+  var target_temp  = ((result["shared"][device_id]["target_temperature"]*9)/5)+32;
+  var humidity     = result["device"][device_id]["current_humidity"];
+  var auto_away    = result["shared"][device_id]["auto_away"];
+  var heater_state = result["shared"][device_id]["hvac_heater_state"];
+  var time = new Date();
+ 
+ //NOAA DATA
+  var wxrequest=UrlFetchApp.fetch('http://forecast.weather.gov/MapClick.php?lat=45.5200&lon=-122.6819&FcstType=json');
+  var wxresult=JSON.parse(wxrequest.getContentText());
+  var outside_temp = wxresult["currentobservation"]["Temp"];
+  var outside_humidity = wxresult["currentobservation"]["Relh"];
+  var wind_speed = wxresult["currentobservation"]["Winds"];
+  var wind_direction = wxresult["currentobservation"]["Windd"];
+  var weather = wxresult["currentobservation"]["Weather"];
+  
+   var ss = SpreadsheetApp.openById(sheetid);
+  var sheet = ss.getSheets()[0];
+ 
+  // Appends a new row with 3 columns to the bottom of the
+  // spreadsheet containing the values in the array
+  sheet.appendRow( [ time, current_temp, target_temp, outside_temp, humidity, outside_humidity, wind_speed, wind_direction, weather, heater_state, auto_away ] );
+}
+
+function performLogin(email, password) {
+  var payload = {
+    "username" : email,
+    "password" : password
+  };
+  
+  var options = {
+    "method"  : "post",
+    "payload" : payload
+  };
+ 
+  var response = JSON.parse(UrlFetchApp.fetch('https://home.nest.com/user/login', options).getContentText());
+  if ('error' in response) {
+    throw "Invalid login credentials";
+  }  
+  return response
+}
+
+function getData(){  
+  var url = ScriptApp.getService().getUrl();
+  var response = UrlFetchApp.fetch(url);
+}  
